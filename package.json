@@ -1,0 +1,12 @@
+{
+  "name": "wandercut",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "여행 영상 자동 메이커 Chrome 확장 — 핵심 로직 단위 테스트 포함",
+  "scripts": {
+    "test": "node --test",
+    "test:watch": "node --test --watch",
+    "build": "bash scripts/package.sh"
+  }
+}

@@ -6,26 +6,34 @@
 const EPOCH_1904 = -2082844800000; // 1904-01-01 ~ 1970-01-01 (ms)
 
 // ── JPEG EXIF ────────────────────────────────────────────────────────────
-function parseExif(buffer) {
-  const view = new DataView(buffer);
-  if (view.byteLength < 4 || view.getUint16(0) !== 0xffd8) return null; // SOI
+// 손상·절단된 입력에서도 절대 throw하지 않고 null을 반환한다(전역 가드).
+export function parseExif(buffer) {
+  try {
+    const view = new DataView(buffer);
+    if (view.byteLength < 4 || view.getUint16(0) !== 0xffd8) return null; // SOI
 
-  let offset = 2;
-  while (offset + 4 < view.byteLength) {
-    const marker = view.getUint16(offset);
-    const size = view.getUint16(offset + 2);
-    if ((marker & 0xff00) !== 0xff00) break;
-    if (marker === 0xffe1) {
-      // APP1
-      const app1Start = offset + 4;
-      if (view.getUint32(app1Start) === 0x45786966) {
-        // "Exif"
-        return readTiff(view, app1Start + 6);
+    let offset = 2;
+    while (offset + 4 <= view.byteLength) {
+      const marker = view.getUint16(offset);
+      if ((marker & 0xff00) !== 0xff00) break;
+      const size = view.getUint16(offset + 2);
+      if (marker === 0xffe1) {
+        // APP1 — "Exif\0\0" 시그니처 확인 후 TIFF 파싱
+        const app1Start = offset + 4;
+        if (
+          app1Start + 4 <= view.byteLength &&
+          view.getUint32(app1Start) === 0x45786966 // "Exif"
+        ) {
+          return readTiff(view, app1Start + 6);
+        }
       }
+      if (size < 2) break; // 비정상 세그먼트 길이 — 전진 불가
+      offset += 2 + size;
     }
-    offset += 2 + size;
+    return null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 function readTiff(view, tiffStart) {
@@ -81,49 +89,59 @@ function readTiff(view, tiffStart) {
 }
 
 // ── MP4 / MOV mvhd ───────────────────────────────────────────────────────
-function parseMp4Date(buffer) {
-  const view = new DataView(buffer);
-  const len = view.byteLength;
+// 손상·절단된 입력에서도 절대 throw하지 않고 null을 반환한다(전역 가드 + 경계 검사).
+export function parseMp4Date(buffer) {
+  try {
+    const view = new DataView(buffer);
+    const len = view.byteLength;
 
-  function walk(start, end) {
-    let off = start;
-    while (off + 8 <= end) {
-      let size = view.getUint32(off);
-      const type = String.fromCharCode(
-        view.getUint8(off + 4),
-        view.getUint8(off + 5),
-        view.getUint8(off + 6),
-        view.getUint8(off + 7)
-      );
-      let headerSize = 8;
-      if (size === 1) {
-        // 64-bit size
-        size = view.getUint32(off + 8) * 2 ** 32 + view.getUint32(off + 12);
-        headerSize = 16;
-      }
-      if (size < headerSize || off + size > end) break;
+    function walk(start, end) {
+      let off = start;
+      while (off + 8 <= end) {
+        let size = view.getUint32(off);
+        const type = String.fromCharCode(
+          view.getUint8(off + 4),
+          view.getUint8(off + 5),
+          view.getUint8(off + 6),
+          view.getUint8(off + 7)
+        );
+        let headerSize = 8;
+        if (size === 1) {
+          // 64-bit size — largesize 8바이트가 버퍼 안에 있어야 함
+          if (off + 16 > end) break;
+          size = view.getUint32(off + 8) * 2 ** 32 + view.getUint32(off + 12);
+          headerSize = 16;
+        }
+        if (size < headerSize || off + size > end) break;
 
-      if (type === "moov" || type === "trak" || type === "mdia") {
-        const r = walk(off + headerSize, off + size);
-        if (r) return r;
-      } else if (type === "mvhd" || type === "mdhd") {
-        const vOff = off + headerSize;
-        const version = view.getUint8(vOff);
-        let creation;
-        if (version === 1) {
-          creation = view.getUint32(vOff + 4) * 2 ** 32 + view.getUint32(vOff + 8);
-        } else {
-          creation = view.getUint32(vOff + 4);
+        if (type === "moov" || type === "trak" || type === "mdia") {
+          const r = walk(off + headerSize, off + size);
+          if (r) return r;
+        } else if (type === "mvhd" || type === "mdhd") {
+          const vOff = off + headerSize;
+          const version = vOff < end ? view.getUint8(vOff) : 0;
+          // version 0: creation은 vOff+4..vOff+8, version 1: vOff+4..vOff+12
+          const needed = version === 1 ? vOff + 12 : vOff + 8;
+          if (needed > end) break; // 페이로드 절단 — 안전하게 중단
+          let creation;
+          if (version === 1) {
+            creation =
+              view.getUint32(vOff + 4) * 2 ** 32 + view.getUint32(vOff + 8);
+          } else {
+            creation = view.getUint32(vOff + 4);
+          }
+          if (creation > 0) {
+            return new Date(EPOCH_1904 + creation * 1000);
+          }
         }
-        if (creation > 0) {
-          return new Date(EPOCH_1904 + creation * 1000);
-        }
+        off += size;
       }
-      off += size;
+      return null;
     }
+    return walk(0, len);
+  } catch {
     return null;
   }
-  return walk(0, len);
 }
 
 function readChunk(file, start, length) {

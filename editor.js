@@ -155,44 +155,77 @@ function autoSort(notify = true) {
 }
 
 // ── 그리드 렌더 ────────────────────────────────────────────────────────────
+// 타일은 innerHTML 보간 없이 DOM API로 구성한다(텍스트는 textContent, URL은
+// 속성 설정). 파일명 등 사용자 제어 문자열이 들어와도 XSS가 성립하지 않는다.
 function renderGrid() {
-  grid.innerHTML = "";
+  grid.replaceChildren();
   state.items.forEach((item, i) => {
     const li = document.createElement("li");
     li.className = "tile";
     li.draggable = true;
     li.dataset.id = item.id;
 
-    const order = `<span class="tile__order">${i + 1}</span>`;
-    const img = item.thumb
-      ? `<img src="${item.thumb}" alt="" />`
-      : `<div style="width:100%;height:100%;display:grid;place-items:center;color:#666;">불러오는 중…</div>`;
-    const typeBadge =
-      item.kind === "video"
-        ? `<span class="tile__type vid">🎬 ${item.duration ? Math.min(item.duration, state.settings.maxVideoDuration).toFixed(1) + "s" : ""}</span>`
-        : `<span class="tile__type">📷</span>`;
-    const noMeta = item.fromMeta
-      ? ""
-      : `<span class="tile__nometa" title="메타데이터 없음 — 파일 시간 사용">추정</span>`;
+    if (item.thumb) {
+      const img = document.createElement("img");
+      img.src = item.thumb; // 속성 설정 — 마크업 파싱이 아니므로 안전
+      img.alt = "";
+      li.appendChild(img);
+    } else {
+      const ph = document.createElement("div");
+      ph.style.cssText =
+        "width:100%;height:100%;display:grid;place-items:center;color:#666;";
+      ph.textContent = "불러오는 중…";
+      li.appendChild(ph);
+    }
 
-    li.innerHTML = `
-      ${img}
-      ${order}
-      <button class="tile__del" data-del="${item.id}" title="삭제">✕</button>
-      ${noMeta}
-      <div class="tile__badge">
-        <span class="tile__time">${fmtTime(item.date)}</span>
-        ${typeBadge}
-      </div>`;
+    const order = document.createElement("span");
+    order.className = "tile__order";
+    order.textContent = String(i + 1);
+    li.appendChild(order);
+
+    const del = document.createElement("button");
+    del.className = "tile__del";
+    del.title = "삭제";
+    del.textContent = "✕";
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeItem(item.id);
+    });
+    li.appendChild(del);
+
+    if (!item.fromMeta) {
+      const nometa = document.createElement("span");
+      nometa.className = "tile__nometa";
+      nometa.title = "메타데이터 없음 — 파일 시간 사용";
+      nometa.textContent = "추정";
+      li.appendChild(nometa);
+    }
+
+    const badge = document.createElement("div");
+    badge.className = "tile__badge";
+
+    const time = document.createElement("span");
+    time.className = "tile__time";
+    time.textContent = fmtTime(item.date);
+    badge.appendChild(time);
+
+    const type = document.createElement("span");
+    if (item.kind === "video") {
+      type.className = "tile__type vid";
+      const secs = item.duration
+        ? Math.min(item.duration, state.settings.maxVideoDuration).toFixed(1) + "s"
+        : "";
+      type.textContent = `🎬 ${secs}`;
+    } else {
+      type.className = "tile__type";
+      type.textContent = "📷";
+    }
+    badge.appendChild(type);
+    li.appendChild(badge);
+
     grid.appendChild(li);
   });
   bindDrag();
-  grid.querySelectorAll("[data-del]").forEach((b) =>
-    b.addEventListener("click", (e) => {
-      e.stopPropagation();
-      removeItem(+b.dataset.del);
-    })
-  );
 }
 
 function removeItem(id) {

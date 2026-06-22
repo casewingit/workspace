@@ -46,6 +46,46 @@ Chrome 확장 프로그램입니다. 모든 처리는 **브라우저 안에서**
 | 타임라인 구성 | `src/timeline.js` | 길이 산정·비트 스냅·전환/효과 배정 |
 | 렌더링 | `src/renderer.js` | Canvas 실시간 합성 + MediaRecorder 녹화 |
 
+## 🧪 테스트
+
+핵심 로직(타임라인 구성·BPM 분석·메타데이터 파싱·코덱 선택)은 **의존성 없이**
+Node 내장 테스트 러너로 검증합니다. 별도 설치 없이 바로 실행됩니다.
+
+```bash
+node --test          # 또는 npm test
+node --test --watch  # 변경 감지 실행
+```
+
+| 테스트 | 대상 | 검증 내용 |
+|--------|------|-----------|
+| `tests/timeline.test.js` | `buildTimeline` | 길이 산정·트림·비트 스냅(최소 4비트)·전환/효과 배정 |
+| `tests/bpm.test.js` | `analyzeAudio` 외 | 피크 검출, 옥타브 폴딩, 합성 클릭 트랙 BPM 추정 |
+| `tests/metadata.test.js` | `parseExif`/`parseMp4Date` | EXIF(LE/BE·SubIFD/IFD0·무날짜)·`mvhd`(v0/v1)·중첩/64-bit 박스 파싱 |
+| `tests/renderer.test.js` | `pickMime` | 코덱 지원 여부에 따른 MIME 폴백 |
+| `tests/renderer-engine.test.js` | `RenderEngine` | 세그먼트 인덱싱·cover-fit/Ken Burns/비트 펀치 기하·영상 재생 상태 |
+| `tests/renderer-lifecycle.test.js` | `RenderEngine` | `play()`/`dispose()` 프로미스 수명(정지 시 누수 없이 resolve) |
+| `tests/pipeline.test.js` | 모듈 결합 | 메타데이터→시간순 정렬→타임라인의 구조 불변식(빈틈 없음·비트 정수배) |
+
+브라우저 API(Web Audio·FileReader·MediaRecorder·Canvas·rAF)는
+`tests/helpers/fixtures.js`의 최소 모의로 대체하며, 파서는 실제 바이너리 입력으로
+테스트합니다. 손상·절단된 EXIF/MP4 입력에서도 파서는 throw하지 않고 `null`을
+반환하도록 견고화되어 있고, 이를 회귀 테스트로 고정합니다.
+`.github/workflows/test.yml`이 push/PR마다 동일하게 실행합니다.
+
+## 📦 빌드 & 배포
+
+확장을 배포 가능한 zip으로 패키징합니다(런타임 파일만 포함, 테스트·문서·개발
+스크립트 제외).
+
+```bash
+npm run build   # → dist/wandercut-v<version>.zip
+```
+
+생성된 zip은 `chrome://extensions`에서 압축 해제 후 로드하거나 **Chrome Web Store**에
+그대로 업로드할 수 있습니다. `main`에 병합되면 `.github/workflows/release.yml`이
+테스트를 통과한 뒤 자동으로 zip을 빌드해 CI 아티팩트와 `manifest.json` 버전 태그의
+GitHub 릴리스로 올립니다.
+
 ## ⚠️ 참고 사항
 
 - 렌더링은 **영상 길이만큼 실시간**으로 진행됩니다(브라우저 내 합성). 탭을 켠 채로
@@ -68,4 +108,6 @@ src/timeline.js     # 타임라인 빌더
 src/renderer.js     # 캔버스 렌더 + 녹화 엔진
 icons/              # 확장 아이콘
 gen_icons.py        # 아이콘 생성 스크립트(개발용)
+tests/              # node:test 단위 테스트 + 바이너리 픽스처
+package.json        # 테스트 스크립트(npm test) / type=module
 ```

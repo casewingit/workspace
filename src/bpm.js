@@ -59,7 +59,7 @@ export async function analyzeAudio(arrayBuffer) {
   };
 }
 
-function collectPeaks(data, sampleRate) {
+export function collectPeaks(data, sampleRate) {
   const len = data.length;
   // 윈도우 단위 RMS로 에너지 포락선 계산
   const win = Math.floor(sampleRate * 0.01); // 10ms
@@ -88,7 +88,7 @@ function collectPeaks(data, sampleRate) {
   return peaks;
 }
 
-function computeBpm(peaks, sampleRate) {
+export function computeBpm(peaks, sampleRate) {
   if (peaks.length < 4) return 120;
 
   // 후보 간격을 BPM으로 환산해 60~180 범위로 접고 히스토그램 집계
