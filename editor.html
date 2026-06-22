@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="editor.css" />
+  <title>Wandercut — 여행 영상 자동 메이커</title>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 48 48" width="30" height="30" aria-hidden="true">
+        <defs>
+          <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#7c5cff"/>
+            <stop offset="1" stop-color="#ff5c97"/>
+          </linearGradient>
+        </defs>
+        <rect x="4" y="10" width="40" height="28" rx="8" fill="url(#lg)"/>
+        <path d="M20 19l10 5-10 5z" fill="#fff"/>
+      </svg>
+      <div>
+        <div class="brand__name">Wandercut</div>
+        <div class="brand__tag">여행 영상 자동 메이커</div>
+      </div>
+    </div>
+    <div class="topbar__right">
+      <span id="statTotal" class="chip chip--ghost">미디어 0개</span>
+      <span id="statLen" class="chip chip--ghost">예상 길이 0초</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 좌: 미디어 -->
+    <section class="panel media-panel">
+      <div id="dropzone" class="dropzone">
+        <input id="fileInput" type="file" accept="image/*,video/*" multiple hidden />
+        <div class="dropzone__icon">📸🎞️</div>
+        <h2>사진과 영상을 여기로 끌어다 놓으세요</h2>
+        <p>촬영 시간을 자동으로 읽어 여행 순서대로 정렬합니다.</p>
+        <button id="pickBtn" class="btn btn--primary">파일 선택</button>
+        <p class="dropzone__hint">JPG · PNG · HEIC · MP4 · MOV 지원</p>
+      </div>
+
+      <div id="mediaArea" class="media-area hidden">
+        <div class="media-toolbar">
+          <div class="media-toolbar__left">
+            <button id="addMore" class="btn btn--ghost">+ 추가</button>
+            <button id="sortByTime" class="btn btn--ghost">🕒 촬영순 정렬</button>
+          </div>
+          <div class="media-toolbar__right">
+            <span class="muted">드래그해서 순서를 바꿀 수 있어요</span>
+            <button id="clearAll" class="btn btn--danger-ghost">전체 비우기</button>
+          </div>
+        </div>
+        <ul id="grid" class="grid"></ul>
+      </div>
+    </section>
+
+    <!-- 우: 컨트롤 -->
+    <aside class="panel side">
+      <div class="preview">
+        <canvas id="preview" width="1280" height="720"></canvas>
+        <div id="previewEmpty" class="preview__empty">여기에 미리보기가 표시됩니다</div>
+        <div class="preview__controls">
+          <button id="previewBtn" class="btn btn--soft" disabled>▶ 미리보기</button>
+          <button id="stopBtn" class="btn btn--soft hidden">■ 정지</button>
+        </div>
+      </div>
+
+      <div class="card music-card">
+        <div class="card__head">
+          <span>🎵 배경 음악</span>
+          <label class="switch">
+            <input id="beatSync" type="checkbox" />
+            <span>BPM 비트 싱크</span>
+          </label>
+        </div>
+        <input id="musicInput" type="file" accept="audio/*" hidden />
+        <div id="musicDrop" class="music-drop">
+          <span>노래를 끌어다 놓거나</span>
+          <button id="musicBtn" class="btn btn--ghost btn--sm">선택</button>
+        </div>
+        <div id="musicInfo" class="music-info hidden">
+          <div class="music-info__row">
+            <span id="musicName" class="music-info__name">song.mp3</span>
+            <button id="musicRemove" class="iconbtn" title="제거">✕</button>
+          </div>
+          <div class="music-info__meta">
+            <span id="bpmBadge" class="bpm">BPM 분석 중…</span>
+            <span id="musicLen" class="muted"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><span>⚙️ 편집 설정</span></div>
+        <div class="setting">
+          <label>화면 비율</label>
+          <div class="seg" id="aspect">
+            <button data-v="16:9" class="active">16:9</button>
+            <button data-v="9:16">9:16</button>
+            <button data-v="1:1">1:1</button>
+          </div>
+        </div>
+        <div class="setting">
+          <label>화질</label>
+          <div class="seg" id="quality">
+            <button data-v="720">HD</button>
+            <button data-v="1080" class="active">FHD</button>
+          </div>
+        </div>
+        <div class="setting">
+          <label>사진 노출 시간 <b id="photoDurVal">3.0초</b></label>
+          <input id="photoDur" type="range" min="1.5" max="6" step="0.5" value="3" />
+        </div>
+        <div class="setting">
+          <label>영상 최대 길이 <b id="vidDurVal">5.0초</b></label>
+          <input id="vidDur" type="range" min="2" max="8" step="0.5" value="5" />
+        </div>
+        <div class="setting">
+          <label>전환 효과</label>
+          <div class="seg" id="trans">
+            <button data-v="crossfade" class="active">크로스페이드</button>
+            <button data-v="cut">컷</button>
+          </div>
+        </div>
+      </div>
+
+      <button id="generate" class="btn btn--primary btn--block" disabled>
+        ✨ 영상 만들기
+      </button>
+
+      <div id="progress" class="progress hidden">
+        <div class="progress__bar"><div id="progressFill"></div></div>
+        <div id="progressText" class="progress__text">준비 중…</div>
+        <p class="muted small">렌더링은 영상 길이만큼 실시간으로 진행돼요. 탭을 켠 채로 기다려 주세요.</p>
+      </div>
+
+      <div id="result" class="result hidden">
+        <video id="resultVideo" controls playsinline></video>
+        <div class="result__actions">
+          <a id="downloadBtn" class="btn btn--primary" download>⬇ 다운로드</a>
+          <button id="remakeBtn" class="btn btn--ghost">다시 만들기</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script type="module" src="editor.js"></script>
+</body>
+</html>
