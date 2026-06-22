@@ -150,6 +150,22 @@ export function buildMp4Large({ creationSeconds, version = 0 } = {}) {
   return moov.slice().buffer;
 }
 
+// 페이로드가 없는(헤더만 있는) mvhd — 절단 입력 견고성 검증용
+export function buildMp4TruncatedMvhd() {
+  const mvhd = box("mvhd", new Uint8Array(0)); // size=8, 페이로드 0
+  const moov = box("moov", mvhd);
+  return moov.slice().buffer;
+}
+
+// 선언 크기가 실제 버퍼보다 큰 손상 moov(절단 입력 견고성 검증용)
+export function buildMp4OversizedBox() {
+  const buf = new Uint8Array(12);
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(0, 0x7fffffff, false); // 실제 길이보다 훨씬 큰 size
+  "moov".split("").forEach((c, i) => (buf[4 + i] = c.charCodeAt(0)));
+  return buf.slice().buffer;
+}
+
 // ── 합성 오디오: 일정 BPM의 킥 클릭 트랙 ─────────────────────────────────────
 export function clickTrack(bpm, seconds, sampleRate) {
   const n = Math.floor(seconds * sampleRate);

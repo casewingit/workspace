@@ -63,9 +63,13 @@ node --test --watch  # 변경 감지 실행
 | `tests/metadata.test.js` | `parseExif`/`parseMp4Date` | EXIF(LE/BE·SubIFD/IFD0·무날짜)·`mvhd`(v0/v1)·중첩/64-bit 박스 파싱 |
 | `tests/renderer.test.js` | `pickMime` | 코덱 지원 여부에 따른 MIME 폴백 |
 | `tests/renderer-engine.test.js` | `RenderEngine` | 세그먼트 인덱싱·cover-fit/Ken Burns/비트 펀치 기하·영상 재생 상태 |
+| `tests/renderer-lifecycle.test.js` | `RenderEngine` | `play()`/`dispose()` 프로미스 수명(정지 시 누수 없이 resolve) |
+| `tests/pipeline.test.js` | 모듈 결합 | 메타데이터→시간순 정렬→타임라인의 구조 불변식(빈틈 없음·비트 정수배) |
 
-브라우저 API(Web Audio·FileReader·MediaRecorder)는 `tests/helpers/fixtures.js`의
-최소 모의로 대체하며, 파서는 실제 바이너리 입력으로 테스트합니다.
+브라우저 API(Web Audio·FileReader·MediaRecorder·Canvas·rAF)는
+`tests/helpers/fixtures.js`의 최소 모의로 대체하며, 파서는 실제 바이너리 입력으로
+테스트합니다. 손상·절단된 EXIF/MP4 입력에서도 파서는 throw하지 않고 `null`을
+반환하도록 견고화되어 있고, 이를 회귀 테스트로 고정합니다.
 `.github/workflows/test.yml`이 push/PR마다 동일하게 실행합니다.
 
 ## ⚠️ 참고 사항

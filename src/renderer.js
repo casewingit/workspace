@@ -313,7 +313,16 @@ export class RenderEngine {
       this.recorder.stop();
     } else {
       this._cleanup();
-      if (this._resolve) this._resolve({ blob: null });
+      this._settle({ blob: null });
+    }
+  }
+
+  // play() 프로미스를 정확히 한 번만 resolve한다(중복 호출 무시).
+  _settle(value) {
+    if (this._resolve) {
+      const resolve = this._resolve;
+      this._resolve = null;
+      resolve(value);
     }
   }
 
@@ -334,7 +343,14 @@ export class RenderEngine {
   dispose() {
     this._stopFlag = true;
     if (this._raf) cancelAnimationFrame(this._raf);
+    if (this.recorder && this.recorder.state !== "inactive") {
+      // 녹화 중이면 onstop이 정리·resolve를 담당한다.
+      this.recorder.stop();
+      return;
+    }
     this._cleanup();
+    // 대기 중인 play() 프로미스가 영원히 매달리지 않도록 반드시 resolve.
+    this._settle({ blob: null });
   }
 }
 

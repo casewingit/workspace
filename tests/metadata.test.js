@@ -6,6 +6,8 @@ import {
   buildMp4,
   buildMp4Nested,
   buildMp4Large,
+  buildMp4TruncatedMvhd,
+  buildMp4OversizedBox,
   fakeFile,
   installFileReaderMock,
 } from "./helpers/fixtures.js";
@@ -129,6 +131,52 @@ test("parseMp4Date: mvhd가 없으면 null", () => {
 test("parseMp4Date: creation_time 0이면 null(미설정 취급)", () => {
   const buf = buildMp4({ creationSeconds: 0, version: 0 });
   assert.equal(parseMp4Date(buf), null);
+});
+
+// ── 견고성: 손상/절단 입력에서 throw하지 않고 null 반환 ──────────────────────
+test("parseExif: 절단된 APP1(선언 크기 > 버퍼)도 throw 없이 null", () => {
+  // SOI + APP1 마커 + 큰 size 선언, 그러나 그 뒤 데이터 없음
+  const buf = new ArrayBuffer(8);
+  const dv = new DataView(buf);
+  dv.setUint16(0, 0xffd8, false); // SOI
+  dv.setUint16(2, 0xffe1, false); // APP1
+  dv.setUint16(4, 0xffff, false); // 거대한 세그먼트 크기
+  assert.doesNotThrow(() => parseExif(buf));
+  assert.equal(parseExif(buf), null);
+});
+
+test("parseExif: 'Exif' 시그니처 후 TIFF가 잘려도 null", () => {
+  const full = new Uint8Array(buildJpegExif());
+  const truncated = full.slice(0, 14).buffer; // SOI+APP1+"Exif" 직후에서 절단
+  assert.doesNotThrow(() => parseExif(truncated));
+  assert.equal(parseExif(truncated), null);
+});
+
+test("parseExif: 임의의 쓰레기 버퍼도 throw 없이 null", () => {
+  const buf = new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x10, 0x01, 0x02]).buffer;
+  assert.doesNotThrow(() => parseExif(buf));
+  assert.equal(parseExif(buf), null);
+});
+
+test("parseExif: 빈 버퍼는 null", () => {
+  assert.equal(parseExif(new ArrayBuffer(0)), null);
+});
+
+test("parseMp4Date: 페이로드 없는 mvhd(헤더만)도 throw 없이 null", () => {
+  const buf = buildMp4TruncatedMvhd();
+  assert.doesNotThrow(() => parseMp4Date(buf));
+  assert.equal(parseMp4Date(buf), null);
+});
+
+test("parseMp4Date: 선언 크기가 버퍼보다 큰 손상 박스도 null", () => {
+  const buf = buildMp4OversizedBox();
+  assert.doesNotThrow(() => parseMp4Date(buf));
+  assert.equal(parseMp4Date(buf), null);
+});
+
+test("parseMp4Date: 빈/짧은 버퍼는 null", () => {
+  assert.equal(parseMp4Date(new ArrayBuffer(0)), null);
+  assert.equal(parseMp4Date(new ArrayBuffer(4)), null);
 });
 
 // ── extractMetadata (File/FileReader 통합) ───────────────────────────────────
