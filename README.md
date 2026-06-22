@@ -46,6 +46,27 @@ Chrome 확장 프로그램입니다. 모든 처리는 **브라우저 안에서**
 | 타임라인 구성 | `src/timeline.js` | 길이 산정·비트 스냅·전환/효과 배정 |
 | 렌더링 | `src/renderer.js` | Canvas 실시간 합성 + MediaRecorder 녹화 |
 
+## 🧪 테스트
+
+핵심 로직(타임라인 구성·BPM 분석·메타데이터 파싱·코덱 선택)은 **의존성 없이**
+Node 내장 테스트 러너로 검증합니다. 별도 설치 없이 바로 실행됩니다.
+
+```bash
+node --test          # 또는 npm test
+node --test --watch  # 변경 감지 실행
+```
+
+| 테스트 | 대상 | 검증 내용 |
+|--------|------|-----------|
+| `tests/timeline.test.js` | `buildTimeline` | 길이 산정·트림·비트 스냅(최소 4비트)·전환/효과 배정 |
+| `tests/bpm.test.js` | `analyzeAudio` 외 | 피크 검출, 옥타브 폴딩, 합성 클릭 트랙 BPM 추정 |
+| `tests/metadata.test.js` | `parseExif`/`parseMp4Date` | 손으로 합성한 EXIF·`mvhd` 바이트로 시각/방향 파싱 |
+| `tests/renderer.test.js` | `pickMime` | 코덱 지원 여부에 따른 MIME 폴백 |
+
+브라우저 API(Web Audio·FileReader·MediaRecorder)는 `tests/helpers/fixtures.js`의
+최소 모의로 대체하며, 파서는 실제 바이너리 입력으로 테스트합니다.
+`.github/workflows/test.yml`이 push/PR마다 동일하게 실행합니다.
+
 ## ⚠️ 참고 사항
 
 - 렌더링은 **영상 길이만큼 실시간**으로 진행됩니다(브라우저 내 합성). 탭을 켠 채로
@@ -68,4 +89,6 @@ src/timeline.js     # 타임라인 빌더
 src/renderer.js     # 캔버스 렌더 + 녹화 엔진
 icons/              # 확장 아이콘
 gen_icons.py        # 아이콘 생성 스크립트(개발용)
+tests/              # node:test 단위 테스트 + 바이너리 픽스처
+package.json        # 테스트 스크립트(npm test) / type=module
 ```

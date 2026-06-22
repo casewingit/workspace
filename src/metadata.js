@@ -6,7 +6,7 @@
 const EPOCH_1904 = -2082844800000; // 1904-01-01 ~ 1970-01-01 (ms)
 
 // ── JPEG EXIF ────────────────────────────────────────────────────────────
-function parseExif(buffer) {
+export function parseExif(buffer) {
   const view = new DataView(buffer);
   if (view.byteLength < 4 || view.getUint16(0) !== 0xffd8) return null; // SOI
 
@@ -81,7 +81,7 @@ function readTiff(view, tiffStart) {
 }
 
 // ── MP4 / MOV mvhd ───────────────────────────────────────────────────────
-function parseMp4Date(buffer) {
+export function parseMp4Date(buffer) {
   const view = new DataView(buffer);
   const len = view.byteLength;
 
