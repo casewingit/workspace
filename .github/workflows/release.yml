@@ -1,0 +1,52 @@
+name: build-extension
+
+# main에 병합(push)되면 확장을 배포 가능한 zip으로 빌드하고 릴리스에 첨부한다.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # 깨진 빌드를 배포하지 않도록 테스트를 게이트로
+      - name: Run tests
+        run: node --test
+
+      - name: Package extension
+        id: pkg
+        run: |
+          bash scripts/package.sh
+          echo "version=$(node -p "require('./manifest.json').version")" >> "$GITHUB_OUTPUT"
+
+      # CI 아티팩트로도 항상 다운로드 가능하게
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wandercut-extension
+          path: dist/wandercut-v${{ steps.pkg.outputs.version }}.zip
+          if-no-files-found: error
+
+      # manifest 버전 태그로 릴리스 생성(이미 있으면 zip만 갱신)
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.pkg.outputs.version }}"
+          ZIP="dist/wandercut-v${{ steps.pkg.outputs.version }}.zip"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ZIP" --clobber
+          else
+            gh release create "$TAG" "$ZIP" \
+              --title "Wandercut $TAG" \
+              --notes "Chrome 확장(MV3) 패키지입니다. chrome://extensions에서 압축 해제 후 로드하거나 Chrome Web Store에 업로드해 배포하세요."
+          fi

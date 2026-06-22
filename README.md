@@ -72,6 +72,20 @@ node --test --watch  # 변경 감지 실행
 반환하도록 견고화되어 있고, 이를 회귀 테스트로 고정합니다.
 `.github/workflows/test.yml`이 push/PR마다 동일하게 실행합니다.
 
+## 📦 빌드 & 배포
+
+확장을 배포 가능한 zip으로 패키징합니다(런타임 파일만 포함, 테스트·문서·개발
+스크립트 제외).
+
+```bash
+npm run build   # → dist/wandercut-v<version>.zip
+```
+
+생성된 zip은 `chrome://extensions`에서 압축 해제 후 로드하거나 **Chrome Web Store**에
+그대로 업로드할 수 있습니다. `main`에 병합되면 `.github/workflows/release.yml`이
+테스트를 통과한 뒤 자동으로 zip을 빌드해 CI 아티팩트와 `manifest.json` 버전 태그의
+GitHub 릴리스로 올립니다.
+
 ## ⚠️ 참고 사항
 
 - 렌더링은 **영상 길이만큼 실시간**으로 진행됩니다(브라우저 내 합성). 탭을 켠 채로
