@@ -17,11 +17,5 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": [],
-  "web_accessible_resources": [
-    {
-      "resources": ["editor.html"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  "permissions": []
 }
