@@ -1,0 +1,54 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0e0c1a;
+  --grad: linear-gradient(135deg, #7c5cff 0%, #ff5c97 100%);
+}
+body {
+  width: 300px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard",
+    "Apple SD Gothic Neo", Roboto, sans-serif;
+  background: radial-gradient(120% 120% at 50% 0%, #1c1738 0%, var(--bg) 60%);
+  color: #f4f2ff;
+}
+.pop {
+  padding: 26px 22px 22px;
+  text-align: center;
+}
+.pop__logo {
+  width: 64px; height: 64px;
+  margin: 0 auto 12px;
+  display: grid; place-items: center;
+  border-radius: 18px;
+  background: rgba(255,255,255,.05);
+  box-shadow: 0 8px 30px rgba(124,92,255,.35);
+}
+.pop__title {
+  font-size: 22px; font-weight: 800; letter-spacing: -.02em;
+  background: var(--grad);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.pop__sub {
+  margin: 8px 0 18px;
+  font-size: 12.5px; line-height: 1.6; color: #b9b4d6;
+}
+.pop__btn {
+  width: 100%;
+  padding: 12px 16px;
+  border: 0; border-radius: 12px;
+  font-size: 14px; font-weight: 700; color: #fff;
+  background: var(--grad);
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(255,92,151,.35);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.pop__btn:hover { transform: translateY(-1px); box-shadow: 0 10px 30px rgba(255,92,151,.5); }
+.pop__btn:active { transform: translateY(0); }
+.pop__feats {
+  list-style: none; margin-top: 18px; text-align: left;
+  display: grid; gap: 8px;
+}
+.pop__feats li {
+  font-size: 12.5px; color: #cdc8e8;
+  background: rgba(255,255,255,.04);
+  padding: 9px 12px; border-radius: 10px;
+}

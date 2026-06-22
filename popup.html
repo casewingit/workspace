@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>Wandercut</title>
+</head>
+<body>
+  <div class="pop">
+    <div class="pop__logo">
+      <svg viewBox="0 0 48 48" width="40" height="40" aria-hidden="true">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#7c5cff"/>
+            <stop offset="1" stop-color="#ff5c97"/>
+          </linearGradient>
+        </defs>
+        <rect x="4" y="10" width="40" height="28" rx="8" fill="url(#g)"/>
+        <path d="M20 19l10 5-10 5z" fill="#fff"/>
+      </svg>
+    </div>
+    <h1 class="pop__title">Wandercut</h1>
+    <p class="pop__sub">여행의 감동을 단 한 번의 클릭으로<br/>자동 편집 영상으로 이어가세요.</p>
+    <button id="open" class="pop__btn">에디터 열기</button>
+    <ul class="pop__feats">
+      <li>📷 촬영 시간순 자동 정렬</li>
+      <li>🎵 노래 BPM에 맞춘 전환</li>
+      <li>✂️ 영상 자동 트림 · Ken Burns</li>
+    </ul>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
