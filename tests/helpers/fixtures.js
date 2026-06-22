@@ -3,60 +3,71 @@
 // 아닌 "진짜" 입력으로 코드 경로를 검증한다.
 
 // ── JPEG + EXIF(APP1) ─────────────────────────────────────────────────────
-// little-endian TIFF: IFD0(Orientation, ExifIFD 포인터) → SubIFD(DateTimeOriginal)
+// 유연한 TIFF 빌더. 엔디안, Orientation 유무, 날짜 위치(SubIFD의 0x9003 또는
+// IFD0의 0x0132), 날짜 생략을 모두 지원해 다양한 파싱 경로를 검증한다.
 export function buildTiff({
   dateString = "2023:07:15 14:30:45",
   orientation = 6,
+  little = true,
+  dateLocation = "sub", // "sub" | "ifd0"
 } = {}) {
-  const strLen = dateString.length + 1; // null 포함
+  const hasOrientation = orientation != null;
+  const hasDate = dateString != null;
+  const dateInSub = hasDate && dateLocation === "sub";
+  const dateInIfd0 = hasDate && dateLocation === "ifd0";
+
+  let ifd0Count = 0;
+  if (hasOrientation) ifd0Count++;
+  if (dateInIfd0) ifd0Count++;
+  if (dateInSub) ifd0Count++; // ExifIFD 포인터
+
   const headerLen = 8;
-  const ifd0Count = 2;
-  const ifd0Len = 2 + ifd0Count * 12 + 4; // 30
-  const subStart = headerLen + ifd0Len; // 38
-  const subLen = 2 + 1 * 12 + 4; // 18
-  const strStart = subStart + subLen; // 56
+  const ifd0Len = 2 + ifd0Count * 12 + 4;
+  const subStart = headerLen + ifd0Len;
+  const subLen = dateInSub ? 2 + 1 * 12 + 4 : 0;
+  const strStart = subStart + subLen;
+  const strLen = hasDate ? dateString.length + 1 : 0;
+
   const buf = new ArrayBuffer(strStart + strLen);
   const dv = new DataView(buf);
+  const s16 = (o, v) => dv.setUint16(o, v, little);
+  const s32 = (o, v) => dv.setUint32(o, v, little);
 
-  // TIFF 헤더
-  dv.setUint16(0, 0x4949, false); // "II" (양 끝 동일)
-  dv.setUint16(2, 0x002a, true);
-  dv.setUint32(4, 8, true); // IFD0 오프셋
+  dv.setUint16(0, little ? 0x4949 : 0x4d4d, false); // "II" / "MM"
+  s16(2, 0x002a);
+  s32(4, 8); // IFD0 오프셋
 
-  // IFD0
   let o = 8;
-  dv.setUint16(o, ifd0Count, true);
+  s16(o, ifd0Count);
   o += 2;
-  // Orientation (0x0112, SHORT)
-  dv.setUint16(o, 0x0112, true);
-  dv.setUint16(o + 2, 3, true);
-  dv.setUint32(o + 4, 1, true);
-  dv.setUint16(o + 8, orientation, true);
-  o += 12;
-  // ExifIFD 포인터 (0x8769, LONG)
-  dv.setUint16(o, 0x8769, true);
-  dv.setUint16(o + 2, 4, true);
-  dv.setUint32(o + 4, 1, true);
-  dv.setUint32(o + 8, subStart, true);
-  o += 12;
-  dv.setUint32(o, 0, true); // next IFD = 0
+  const writeShort = (tag, val) => {
+    s16(o, tag); s16(o + 2, 3); s32(o + 4, 1); s16(o + 8, val); o += 12;
+  };
+  const writeLong = (tag, val) => {
+    s16(o, tag); s16(o + 2, 4); s32(o + 4, 1); s32(o + 8, val); o += 12;
+  };
+  const writeAscii = (tag) => {
+    s16(o, tag); s16(o + 2, 2); s32(o + 4, strLen); s32(o + 8, strStart); o += 12;
+  };
 
-  // SubIFD
-  o = subStart;
-  dv.setUint16(o, 1, true);
-  o += 2;
-  // DateTimeOriginal (0x9003, ASCII)
-  dv.setUint16(o, 0x9003, true);
-  dv.setUint16(o + 2, 2, true);
-  dv.setUint32(o + 4, strLen, true);
-  dv.setUint32(o + 8, strStart, true);
-  o += 12;
-  dv.setUint32(o, 0, true); // next IFD = 0
+  if (hasOrientation) writeShort(0x0112, orientation);
+  if (dateInIfd0) writeAscii(0x0132); // DateTime
+  if (dateInSub) writeLong(0x8769, subStart); // ExifIFD 포인터
+  s32(o, 0); o += 4; // next IFD
 
-  for (let i = 0; i < dateString.length; i++) {
-    dv.setUint8(strStart + i, dateString.charCodeAt(i));
+  if (dateInSub) {
+    o = subStart;
+    s16(o, 1); o += 2;
+    writeAscii(0x9003); // DateTimeOriginal
+    s32(o, 0); o += 4;
   }
-  dv.setUint8(strStart + dateString.length, 0);
+
+  if (hasDate) {
+    for (let i = 0; i < dateString.length; i++) {
+      dv.setUint8(strStart + i, dateString.charCodeAt(i));
+    }
+    dv.setUint8(strStart + dateString.length, 0);
+  }
   return new Uint8Array(buf);
 }
 
@@ -87,23 +98,55 @@ function box(type, payload) {
   return buf;
 }
 
-export function buildMp4({ creationSeconds, version = 0 } = {}) {
-  let payload;
+// size=1 → 64-bit largesize 박스
+function box64(type, payload) {
+  const size = 16 + payload.length;
+  const buf = new Uint8Array(size);
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(0, 1, false); // size==1 → largesize 사용 신호
+  for (let i = 0; i < 4; i++) buf[4 + i] = type.charCodeAt(i);
+  dv.setUint32(8, 0, false); // largesize 상위 32
+  dv.setUint32(12, size, false); // largesize 하위 32
+  buf.set(payload, 16);
+  return buf;
+}
+
+function mvhdPayload(creationSeconds, version) {
   if (version === 1) {
-    payload = new Uint8Array(4 + 8 + 8 + 4 + 8);
+    const payload = new Uint8Array(4 + 8 + 8 + 4 + 8);
     const dv = new DataView(payload.buffer);
     dv.setUint8(0, 1);
     dv.setUint32(4, Math.floor(creationSeconds / 2 ** 32), false);
     dv.setUint32(8, creationSeconds >>> 0, false);
-  } else {
-    payload = new Uint8Array(20);
-    const dv = new DataView(payload.buffer);
-    dv.setUint8(0, 0);
-    dv.setUint32(4, creationSeconds, false);
+    return payload;
   }
-  const mvhd = box("mvhd", payload);
+  const payload = new Uint8Array(20);
+  const dv = new DataView(payload.buffer);
+  dv.setUint8(0, 0);
+  dv.setUint32(4, creationSeconds, false);
+  return payload;
+}
+
+export function buildMp4({ creationSeconds, version = 0 } = {}) {
+  const mvhd = box("mvhd", mvhdPayload(creationSeconds, version));
   const moov = box("moov", mvhd);
   // 새 ArrayBuffer로 복사해 정확히 moov 길이만 반환
+  return moov.slice().buffer;
+}
+
+// moov > trak > mdia > mdhd 중첩(박스 워킹 재귀 검증용)
+export function buildMp4Nested({ creationSeconds, version = 0 } = {}) {
+  const mdhd = box("mdhd", mvhdPayload(creationSeconds, version));
+  const mdia = box("mdia", mdhd);
+  const trak = box("trak", mdia);
+  const moov = box("moov", trak);
+  return moov.slice().buffer;
+}
+
+// 64-bit largesize 헤더를 가진 moov(64-bit 박스 파싱 검증용)
+export function buildMp4Large({ creationSeconds, version = 0 } = {}) {
+  const mvhd = box("mvhd", mvhdPayload(creationSeconds, version));
+  const moov = box64("moov", mvhd);
   return moov.slice().buffer;
 }
 
@@ -125,7 +168,7 @@ export function clickTrack(bpm, seconds, sampleRate) {
 
 // ── Web Audio 모의: analyzeAudio가 쓰는 그래프 API만 채워, 합성 신호를
 //    저역통과 출력처럼 그대로 통과시킨다. ─────────────────────────────────────
-export function installAudioMock(signal, sampleRate) {
+export function installAudioMock(signal, sampleRate, { webkit = false } = {}) {
   const audioBuffer = {
     duration: signal.length / sampleRate,
     sampleRate,
@@ -137,13 +180,20 @@ export function installAudioMock(signal, sampleRate) {
     Offline: globalThis.OfflineAudioContext,
   };
   globalThis.window = globalThis.window || {};
-  globalThis.window.AudioContext = class {
+  const AC = class {
     decodeAudioData() {
       return Promise.resolve(audioBuffer);
     }
     close() {}
   };
-  globalThis.window.webkitAudioContext = undefined;
+  // webkit 경로 검증: 표준 AudioContext가 없고 webkitAudioContext만 있는 환경
+  if (webkit) {
+    globalThis.window.AudioContext = undefined;
+    globalThis.window.webkitAudioContext = AC;
+  } else {
+    globalThis.window.AudioContext = AC;
+    globalThis.window.webkitAudioContext = undefined;
+  }
   globalThis.OfflineAudioContext = class {
     constructor() {
       this.destination = {};

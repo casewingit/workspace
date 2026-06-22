@@ -60,8 +60,9 @@ node --test --watch  # 변경 감지 실행
 |--------|------|-----------|
 | `tests/timeline.test.js` | `buildTimeline` | 길이 산정·트림·비트 스냅(최소 4비트)·전환/효과 배정 |
 | `tests/bpm.test.js` | `analyzeAudio` 외 | 피크 검출, 옥타브 폴딩, 합성 클릭 트랙 BPM 추정 |
-| `tests/metadata.test.js` | `parseExif`/`parseMp4Date` | 손으로 합성한 EXIF·`mvhd` 바이트로 시각/방향 파싱 |
+| `tests/metadata.test.js` | `parseExif`/`parseMp4Date` | EXIF(LE/BE·SubIFD/IFD0·무날짜)·`mvhd`(v0/v1)·중첩/64-bit 박스 파싱 |
 | `tests/renderer.test.js` | `pickMime` | 코덱 지원 여부에 따른 MIME 폴백 |
+| `tests/renderer-engine.test.js` | `RenderEngine` | 세그먼트 인덱싱·cover-fit/Ken Burns/비트 펀치 기하·영상 재생 상태 |
 
 브라우저 API(Web Audio·FileReader·MediaRecorder)는 `tests/helpers/fixtures.js`의
 최소 모의로 대체하며, 파서는 실제 바이너리 입력으로 테스트합니다.

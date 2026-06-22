@@ -136,6 +136,49 @@ test("빈 입력은 빈 타임라인을 만든다", () => {
   assert.equal(tl.totalDuration, 0);
 });
 
+test("beatSync: 빠른 비트에서 transDur는 interval*0.4로 제한된다", () => {
+  // interval 0.3 → min(0.18, 0.12) = 0.12
+  const beat = { beatInterval: 0.3, firstBeat: 0.1 };
+  const tl = buildTimeline([photo("a")], { beatSync: true }, beat);
+  assert.equal(Math.round(tl.segments[0].transDur * 1000) / 1000, 0.12);
+});
+
+test("beatSync: 여러 영상이 각각 비트에 스냅되고 start가 누적된다", () => {
+  const beat = { beatInterval: 0.5, firstBeat: 0 };
+  const items = [video("v1", 3), video("v2", 7), photo("p")];
+  const tl = buildTimeline(
+    items,
+    { beatSync: true, maxVideoDuration: 4, photoDuration: 2 },
+    beat
+  );
+  // v1: min(3,4)=3 → snap round(6)=6비트=3.0
+  // v2: min(7,4)=4 → snap round(8)=8비트=4.0, trimStart 가운데 후 보정
+  // p : 2 → snap round(4)=4비트=2.0
+  assert.deepEqual(
+    tl.segments.map((s) => s.duration),
+    [3, 4, 2]
+  );
+  assert.deepEqual(
+    tl.segments.map((s) => s.start),
+    [0, 3, 7]
+  );
+  assert.equal(tl.totalDuration, 9);
+  for (const s of tl.segments) assert.equal(s.transition, "cut");
+});
+
+test("media 참조가 세그먼트에 그대로 보존된다", () => {
+  const items = [photo("a"), video("v", 5)];
+  const tl = buildTimeline(items, {});
+  assert.equal(tl.segments[0].media, items[0]);
+  assert.equal(tl.segments[1].media, items[1]);
+});
+
+test("transitionDuration이 매우 크면 duration*0.4로 상한", () => {
+  // duration 3 → 3*0.4 = 1.2(부동소수점), transitionDuration 5 → min ≈ 1.2
+  const tl = buildTimeline([photo("a")], { photoDuration: 3, transitionDuration: 5 });
+  assert.ok(Math.abs(tl.segments[0].transDur - 1.2) < 1e-9);
+});
+
 test("사진+영상 혼합: start가 누적되고 효과가 종류별로 갈린다", () => {
   const items = [photo("a"), video("v", 10), photo("b")];
   const tl = buildTimeline(items, { photoDuration: 3, maxVideoDuration: 4 });
